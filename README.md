@@ -1,4 +1,4 @@
-﻿# Ontology-Graph Hybrid for Predictive Maintenance
+﻿# Graph-Based Reasoning for Failure Prediction
 
 Failure prediction for semiconductor manufacturing using human-readable rules stored in a Neo4j knowledge graph, benchmarked against an XGBoost classifier on the [UCI SECOM dataset](https://doi.org/10.24432/C54305).
 
