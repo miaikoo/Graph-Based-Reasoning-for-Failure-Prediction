@@ -20,6 +20,7 @@ from sklearn.metrics import (
     confusion_matrix,
     classification_report,
 )
+from sklearn.model_selection import train_test_split
 import warnings
 
 # Configuration
@@ -79,7 +80,6 @@ class PredictiveMaintenanceEvaluator:
 
                 if threshold_met:
                     is_failure = True
-                    print(f"DEBUG: Alert! {rule['sensor']} value {sensor_val} violated {rule['condition']} {rule['threshold']}")
                     if rule["confidence"] > max_confidence:
                         max_confidence = rule["confidence"]
 
@@ -115,24 +115,28 @@ def run_evaluation():
 
     df_y = pd.read_csv(LABELS_PATH, sep=" ", header=None)
     df_y.columns = ["Label", "Timestamp"]
-    y_true = df_y["Label"].apply(lambda x: 1 if x == 1 else 0).tolist()
+    y = df_y["Label"].apply(lambda x: 1 if x == 1 else 0)
 
-    test_limit = 500
-    df_x_test = df_x.head(test_limit)
-    y_true_test = y_true[:test_limit]
+    print(f"    Loaded {len(df_x)} rows and {df_x.shape[1]} features")
+    print(f"    Class distribution: {y.value_counts().to_dict()}")
 
-    print(f"    Loaded {len(df_x_test)} rows for evaluation.")
+    # Split data: 80% train, 20% test (same as baseline-xgb)
+    X_train, X_test, y_train, y_test = train_test_split(
+        df_x, y, test_size=0.2, random_state=42, stratify=y
+    )
+
+    print(f"    Test set size: {len(X_test)} rows")
 
     evaluator = PredictiveMaintenanceEvaluator(NEO4J_URI, NEO4J_AUTH)
     try:
-        y_pred, y_scores = evaluator.batch_predict(df_x_test)
+        y_pred, y_scores = evaluator.batch_predict(X_test)
 
         print("\n\n>>> 2. CALCULATION METRICS")
         print("=" * 60)
 
         # Confusion matrix
         try:
-            cm = confusion_matrix(y_true_test, y_pred, labels=[0, 1])
+            cm = confusion_matrix(y_test, y_pred, labels=[0, 1])
             tn, fp, fn, tp = cm.ravel()
             print("Confusion Matrix:")
             print(f" [ TN: {tn} | FP: {fp} ]")
@@ -140,18 +144,18 @@ def run_evaluation():
         except ValueError:
             # In case of single-class predictions/labels
             print("Confusion Matrix (raw):")
-            print(confusion_matrix(y_true_test, y_pred))
+            print(confusion_matrix(y_test, y_pred))
 
         print("-" * 30)
-        print(classification_report(y_true_test, y_pred, digits=4))
+        print(classification_report(y_test, y_pred, digits=4))
 
         # Core metrics
-        acc = accuracy_score(y_true_test, y_pred)
-        prec = precision_score(y_true_test, y_pred, zero_division=0)
-        rec = recall_score(y_true_test, y_pred, zero_division=0)
-        f1 = f1_score(y_true_test, y_pred, zero_division=0)
+        acc = accuracy_score(y_test, y_pred)
+        prec = precision_score(y_test, y_pred, zero_division=0)
+        rec = recall_score(y_test, y_pred, zero_division=0)
+        f1 = f1_score(y_test, y_pred, zero_division=0)
         try:
-            auc = roc_auc_score(y_true_test, y_scores)
+            auc = roc_auc_score(y_test, y_scores)
         except ValueError:
             auc = 0.0
 
